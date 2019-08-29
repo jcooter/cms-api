@@ -1,0 +1,356 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Burning Timber
+
+  Rest API for web content management
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+Parameters:
+  Domain:
+    Type: String
+    Description: Enter domain name for stack deployment.
+
+Resources:
+  CMSTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        -
+          AttributeName: ID
+          AttributeType: S
+        -
+          AttributeName: CreateTimestamp
+          AttributeType: N
+        -
+          AttributeName: Site
+          AttributeType: S
+        -
+          AttributeName: Collection
+          AttributeType: S
+      KeySchema:
+        -
+          AttributeName: ID
+          KeyType: HASH
+        -
+          AttributeName: CreateTimestamp
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      TableName: 'CMS'
+      GlobalSecondaryIndexes:
+        -
+          IndexName: 'Site-index'
+          KeySchema:
+            - AttributeName: Site
+              KeyType: HASH
+            - AttributeName: Collection
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+        -
+          IndexName: 'Collection-index'
+          KeySchema:
+            - AttributeName: Collection
+              KeyType: HASH
+            - AttributeName: CreateTimestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+  ContentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Join ['.', ['content', !Ref 'AWS::StackName', !Ref Domain]]
+      AccessControl: PublicRead
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: FALSE
+        BlockPublicPolicy: FALSE
+        IgnorePublicAcls: FALSE
+        RestrictPublicBuckets: FALSE
+      VersioningConfiguration:
+        Status: Enabled
+
+  ContentApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: v1
+
+  ContentLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: "/"
+      Policies:
+        -
+          PolicyName: "DynamoCMSReadOnly"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource: !Join ['', ['arn:aws:dynamodb:', !Ref 'AWS::Region', ':', !Ref 'AWS::AccountId', ':table/CMS', !Ref CMSTable]]
+
+  ContentSiteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CMSTable
+      Role: !GetAtt ContentLambdaRole.Arn
+      CodeUri: content/
+      Handler: sites.handler
+      Runtime: python3.7
+      Events:
+        GetSite:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ContentApi
+            Path: /site/{id}
+            Method: get
+
+  ContentPostFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CMSTable
+      Role: !GetAtt ContentLambdaRole.Arn
+      CodeUri: content/
+      Handler: posts.handler
+      Runtime: python3.7
+      Events:
+        GetPosts:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            RestApiId: !Ref ContentApi
+            Path: /posts
+            Method: get
+        GetPostId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ContentApi
+            Path: /posts/{id}
+            Method: get
+
+  ContentCollectionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CMSTable
+      Role: !GetAtt ContentLambdaRole.Arn
+      CodeUri: content/
+      Handler: collections.handler
+      Runtime: python3.7
+      Events:
+        GetCollections:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ContentApi
+            Path: /collections
+            Method: get
+        GetCollectionId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ContentApi
+            Path: /collections/{id}
+            Method: get
+
+  AdminApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: v1
+
+  AdminLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: "/"
+      Policies:
+        - PolicyName: "DynamoCMSReadWrite"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DeleteItem
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource: !Join ['', ['arn:aws:dynamodb:', !Ref 'AWS::Region', ':', !Ref 'AWS::AccountId', ':table/', !Ref CMSTable]]
+
+  AdminSiteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CMSTable
+      Role: !GetAtt AdminLambdaRole.Arn
+      CodeUri: admin/
+      Handler: sites.handler
+      Runtime: python3.7
+      Events:
+        GetSites:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /sites
+            Method: get
+        GetSiteId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /sites/{id}
+            Method: get
+        PostSiteId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /sites/{id}
+            Method: post
+        PutSiteId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /sites/{id}
+            Method: put
+        DeleteSiteId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /sites/{id}
+            Method: delete
+
+  AdminPostFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CMSTable
+      Role: !GetAtt AdminLambdaRole.Arn
+      CodeUri: admin/
+      Handler: posts.handler
+      Runtime: python3.7
+      Events:
+        GetPosts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /posts
+            Method: get
+        GetPostId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /posts/{id}
+            Method: get
+        PostPostId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /posts/{id}
+            Method: post
+        PutPostId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /posts/{id}
+            Method: put
+        DeletePostId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /posts/{id}
+            Method: delete
+
+  AdminCollectionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CMSTable
+      Role: !GetAtt AdminLambdaRole.Arn
+      CodeUri: admin/
+      Handler: collections.handler
+      Runtime: python3.7
+      Events:
+        GetCollections:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /collections
+            Method: get
+        GetCollectionId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /collections/{id}
+            Method: get
+        PostCollectionId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /collections/{id}
+            Method: post
+        PutCollectionId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /collections/{id}
+            Method: put
+        DeleteCollectionId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AdminApi
+            Path: /collections/{id}
+            Method: delete
+
+Outputs:
+  ContentApi:
+    Description: "Content API Gateway endpoint URL"
+    Value: !Sub "https://${ContentApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
+  AdminApi:
+    Description: "Admin API Gateway endpoint URL"
+    Value: !Sub "https://${AdminApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
+  ContentPostsFunction:
+    Description: "Posts Lambda Function ARN"
+    Value: !GetAtt ContentPostFunction.Arn
+  ContentIamRole:
+    Description: "Content API Role ARN"
+    Value: !GetAtt ContentLambdaRole.Arn
+
+
