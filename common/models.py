@@ -77,7 +77,7 @@ class Post:
     def author(self, value):
         if not isinstance(value, str):
             raise TypeError('Unsupported Type for author attribute')
-        if value <= 64:
+        if len(value) <= 64:
             self._author = value
         else:
             raise ValueError('Author max length is 64 characters')
@@ -90,7 +90,7 @@ class Post:
     def title(self, value):
         if not isinstance(value, str):
             raise TypeError('Unsupported Type for title attribute')
-        if value <= 256:
+        if len(value) <= 256:
             self._author = value
         else:
             raise ValueError('Title max length is 256 characters')
@@ -103,7 +103,7 @@ class Post:
     def slug(self, value):
         if not isinstance(value, str):
             raise TypeError('Unsupported Type for slug attribute')
-        if value <= 32:
+        if len(value) <= 32:
             self._slug = value
         else:
             raise ValueError('Slug max length is 32 characters')
