@@ -1,8 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Burning Timber
-
   Rest API for web content management
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
@@ -120,6 +118,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref CMSTable
+          CONTENT_BUCKET: !Ref ContentBucket
       Role: !GetAtt ContentLambdaRole.Arn
       CodeUri: content/
       Handler: sites.handler
@@ -138,6 +137,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref CMSTable
+          CONTENT_BUCKET: !Ref ContentBucket
       Role: !GetAtt ContentLambdaRole.Arn
       CodeUri: content/
       Handler: posts.handler
@@ -162,6 +162,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref CMSTable
+          CONTENT_BUCKET: !Ref ContentBucket
       Role: !GetAtt ContentLambdaRole.Arn
       CodeUri: content/
       Handler: collections.handler
@@ -219,6 +220,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref CMSTable
+          CONTENT_BUCKET: !Ref ContentBucket
       Role: !GetAtt AdminLambdaRole.Arn
       CodeUri: admin/
       Handler: sites.handler
@@ -261,6 +263,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref CMSTable
+          CONTENT_BUCKET: !Ref ContentBucket
       Role: !GetAtt AdminLambdaRole.Arn
       CodeUri: admin/
       Handler: posts.handler
@@ -303,6 +306,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref CMSTable
+          CONTENT_BUCKET: !Ref ContentBucket
       Role: !GetAtt AdminLambdaRole.Arn
       CodeUri: admin/
       Handler: collections.handler
