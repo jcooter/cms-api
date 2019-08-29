@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid1 as uuid
 
-from .s3 import get_content, set_content
+from .s3 import StorageHandler as storage
 from .dynamodb import DatabaseHandler as database
 
 class Post:
@@ -114,9 +114,9 @@ class Post:
 
     @property
     def content(self):
-        get_content(self._content)
+        storage.get_content(self._content)
 
     @content.setter
     def content(self, value):
         # TODO: Validate markdown syntax
-        set_content(value)
+        storage.set_content(value)
