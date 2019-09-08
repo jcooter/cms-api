@@ -21,20 +21,20 @@ Resources:
     Properties:
       AttributeDefinitions:
         -
-          AttributeName: ID
+          AttributeName: ContentID
           AttributeType: S
         -
           AttributeName: CreateTimestamp
           AttributeType: N
         -
-          AttributeName: Site
+          AttributeName: SiteID
           AttributeType: S
         -
-          AttributeName: Collection
+          AttributeName: CollectionID
           AttributeType: S
       KeySchema:
         -
-          AttributeName: ID
+          AttributeName: ContentID
           KeyType: HASH
         -
           AttributeName: CreateTimestamp
@@ -47,9 +47,9 @@ Resources:
         -
           IndexName: 'Site-index'
           KeySchema:
-            - AttributeName: Site
+            - AttributeName: SiteID
               KeyType: HASH
-            - AttributeName: Collection
+            - AttributeName: CollectionID
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -59,9 +59,9 @@ Resources:
         -
           IndexName: 'Collection-index'
           KeySchema:
-            - AttributeName: Collection
+            - AttributeName: CollectionID
               KeyType: HASH
-            - AttributeName: CreateTimestamp
+            - AttributeName: ContentID
               KeyType: RANGE
           Projection:
             ProjectionType: ALL

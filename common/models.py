@@ -1,22 +1,47 @@
 from datetime import datetime
 from uuid import uuid1 as uuid
+from slugify import slugify
 
 from .s3 import StorageHandler as storage
 from .dynamodb import DatabaseHandler as database
 
 class Post:
     def __init__(self):
-        self._id = uuid()
-        self._type = 'Post'
-        self._create_timestamp = datetime.utcnow()
-        self._site = []
-        self._collection = []
-        self._published = False
-        self._author = ""
-        self._title = ""
-        self._slug = ""
-        self._content_type = "text/markdown"
-        self._content = ""
+        self._fields = {
+            'ID': uuid(),
+            'Type': 'Post',
+            'CreateTimestamp': datetime.utcnow(),
+            'Site': [],
+            'Collection': [],
+            'Published': False,
+            'Author': '',
+            'Title': '',
+            'Slug': '',
+            'ContentType': 'text/markdown',
+            'Content': ''
+        }
+
+    def __init__(self, id):
+        result = database.get_by_id(id)
+        if result.fields['Type'] == 'Post':
+            self._fields = result.fields
+        else:
+            raise ValueError('Object with id {} is not type: Post')
+
+    def __init__(self, site, collection, published, author, title, slug, content_type, content, id=uuid(), create_timestamp=datetime.utcnow()):
+        self._fields = {
+            'ID': id,
+            'Type': 'Post',
+            'CreateTimestamp': create_timestamp,
+            'Site': site,
+            'Collection': collection,
+            'Published': published,
+            'Author': author,
+            'Title': title,
+            'Slug': slug,
+            'ContentType': content_type,
+            'Content': content
+        }
 
     @property
     def id(self):
@@ -91,7 +116,9 @@ class Post:
         if not isinstance(value, str):
             raise TypeError('Unsupported Type for title attribute')
         if len(value) <= 256:
-            self._author = value
+            self._title = value
+            if not self._slug:
+                self.slug = slugify(value, max_length=32, word_boundary=True)
         else:
             raise ValueError('Title max length is 256 characters')
 
@@ -119,4 +146,21 @@ class Post:
     @content.setter
     def content(self, value):
         # TODO: Validate markdown syntax
-        storage.set_content(value)
+        self._content = storage.set_content(value)
+
+    def has_content(self):
+        if self._content:
+            return storage.has_content(self._content)
+        else:
+            return False
+
+    @property
+    def fields(self):
+        fields = []
+        for key, value in self._fields.items():
+            if value:
+                fields.append({key: value})
+        return fields
+
+    def save(self):
+        database.save(self._id)
